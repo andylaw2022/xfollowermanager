@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter关注管理器</title>
+    <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 标题 -->
+        <header class="header">
+            <h1><span class="logo">🐦</span> Twitter关注管理器</h1>
+             <div style="display:flex; gap:8px; align-items:center;">
+                <select id="languageSelect" class="filter-select" style="width:110px; font-size:12px;">
+                    <option value="zh">中文</option>
+                    <option value="en">English</option>
+                    <option value="ja">日本語</option>
+                </select>
+        <button class="refresh-btn" id="donateBtn" title="支持作者" style="font-size: 12px; width: auto; padding: 0 8px;">💖 支持作者</button>             </div>
+        </header>
+
+        <!-- Tab切换 -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="following" id="tabFollowing">我关注的</button>
+            <button class="tab-btn" data-tab="followers" id="tabFollowers">关注我的</button>
+        </div>
+
+        <!-- 筛选条件 -->
+        <div class="filter-section">
+            <div class="filter-header">
+                <h3>
+                    <span class="filter-toggle" id="filterToggle">▼</span>
+                    🎯 筛选条件
+                </h3>
+                <button class="btn-primary" id="applyFilterBtn">查找</button>
+            </div>
+        
+        <div class="filter-content" id="filterContent">
+    <div class="filter-conditions">
+        <div class="filter-row-single">
+            <div class="filter-group-narrow">
+                <label for="verifiedFilter">蓝V认证:</label>
+                <select class="filter-select" id="verifiedFilter" data-filter="verified">
+                    <option value="any">任何</option>
+                    <option value="verified">仅蓝V</option>
+                    <option value="unverified">非蓝V</option>
+                </select>
+            </div>
+
+            <div class="filter-group-narrow">
+                <label for="followsMeFilter">是否关注我:</label>
+                <select class="filter-select" id="followsMeFilter" data-filter="followsMe">
+                    <option value="any">任何</option>
+                    <option value="yes">已关注我</option>
+                    <option value="no">未关注我</option>
+                </select>
+            </div>
+
+            <div class="filter-group-narrow">
+<label for="searchLimit">查找数量(max 100):</label>
+    <input type="number" class="filter-select" id="searchLimit" value="50" min="1" max="100">
+            </div>
+        </div>
+    </div>
+</div>
+        
+        </div>
+
+        <!-- 用户列表区域 -->
+        <div class="results-section">
+            <div class="results-header">
+                <div class="results-info">
+                    <span id="resultCount">找到 0 个用户</span>
+                    <span id="selectedCount" class="selection-count">已选择: 0</span>
+                </div>
+                <div class="selection-actions">
+                    <button class="btn-small" id="selectAllBtn" title="全选当前页">📋 全选</button>
+                    <button class="btn-small" id="invertSelectionBtn" title="反选当前页">🔄 反选</button>
+              
+              <button class="btn-secondary" id="clearDataBtn" style="margin-left: 8px;">✖️ 清空</button>
+                <div class="batch-buttons">
+                    <button class="btn-danger narrow-btn" id="batchUnfollowBtn" disabled>批量取关</button>
+                    <button class="btn-success narrow-btn" id="batchFollowBtn" disabled>批量回关</button>
+                    <button class="btn-secondary narrow-btn" id="batchStopBtn" style="background: #536471; color: white; display: none;">停止</button>
+                </div>
+                </div>
+            </div>
+
+            <div class="user-list-container">
+                <div class="user-list" id="userList">
+                    <div class="empty-state" id="emptyState">
+                        <p>👆 点击"应用筛选"开始获取用户数据</p>
+                        <p class="empty-hint">请确保已打开Twitter/X的个人页面</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分页 -->
+            <div class="pagination" id="pagination">
+                <button class="page-btn" id="prevPage">◀ 上一页</button>
+                <span id="pageInfo">第 1 页</span>
+                <button class="page-btn" id="nextPage">下一页 ▶</button>
+            </div>
+        </div>
+
+        <!-- 批量操作区域 - 固定在底部 -->
+        <div class="batch-section">
+          
+            <div class="batch-controls">
+<div class="interval-control" style="display:none;">
+    <span class="interval-label">最小间隔(秒):</span>
+    <div class="interval-input-container">
+        <button class="interval-btn" id="intervalMinus">-</button>
+        <input type="number" id="operationInterval" min="10" value="10" class="interval-input">
+        <button class="interval-btn" id="intervalPlus">+</button>
+    </div>
+</div>
+
+            </div>
+
+            <!-- 操作状态监控 -->
+            <div class="status-monitor" id="statusMonitor">
+                <div class="status-header">
+                    <h4>📊 操作进度</h4>
+                    <div class="status-controls">
+                        <button class="btn-small" id="pauseBtn">⏸️ 暂停</button>
+                        <button class="btn-small" id="stopBtn">⏹️ 停止</button>
+                    </div>
+                </div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-info">
+                        <span id="progressText">0%</span>
+                        <span class="progress-stats">
+                            <span id="completedCount">0</span>/<span id="totalCount">0</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="status-details">
+                    <div class="status-item">
+                        <span class="status-label">成功:</span>
+                        <span id="successCount" class="success">0</span>
+
+                        <span class="status-label">失败:</span>
+                        <span id="failedCount" class="danger">0</span>
+
+                        <span class="status-label">剩余时间:</span>
+                        <span id="timeRemaining">--</span>
+                    </div>
+                </div>
+
+                <div class="log-section">
+                    <div class="log-header">
+                        <span>操作日志</span>
+                        <button class="btn-small" id="clearLogBtn">清空</button>
+                    </div>
+                    <div class="log-content" id="operationLog"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用户卡片模板 -->
+    <template id="userCardTemplate">
+        <div class="user-card">
+            <div class="user-card-header">
+                <input type="checkbox" class="user-checkbox">
+                <div class="user-avatar"></div>
+                <div class="user-info">
+                    <div class="user-name">
+                        <span class="display-name"></span>
+                        <span class="verified-badge">✓</span>
+                    </div>
+                    <div class="user-handle"></div>
+                </div>
+                <div class="user-actions">
+        <button class="action-btn unfollow-btn" title="真实操作 - 需要Twitter页面保持打开">取消关注</button>
+        <button class="action-btn follow-btn" title="真实操作 - 需要Twitter页面保持打开">关注</button>
+                    </div>
+                    <div style="margin-left:8px; font-size:11px; color:#536471; white-space:nowrap;" class="follows-you"> </div>
+                </div>
+        </div>
+    </template>
+
+        <!-- 捐助模态框 -->
+    <div id="donationModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center; z-index: 10000;">
+        <div style="background:white; padding:16px; border-radius:8px; width:360px; max-width:90%; text-align:center;">
+            <h3 style="margin-bottom:8px;">支持作者</h3>
+            <p style="font-size:13px; color:#0f1419;">支持作者，请转账 SOL 链的 USDT：</p>
+            <img src="icons/sol.usdt.png" alt="SOL USDT QR" style="width:160px; height:160px; display:block; margin:8px auto; object-fit:contain;" />
+
+            <div id="donationAddress" style="word-break:break-all; background:#f7f9f9; padding:8px; border-radius:6px; margin:8px 0; font-weight:700;">
+                <div id="donationAddressText">BvMLgeXYdnemRMKJKvhxhbMWz7TdmNAz2iAUcCowEDsV</div>
+            </div>
+
+            <div style="margin: 15px 0; padding-top: 10px; border-top: 1px dashed #e6ecf0;">
+                <button class="btn-primary" id="followAuthorBtn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <span style="font-size: 16px;">🐦</span> 关注 @andylawian
+                </button>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button class="btn-secondary" id="donationCopyBtn">复制地址</button>
+                <button class="btn-primary" id="donationCloseBtn">关闭</button>
+            </div>
+        </div>
+    </div>
+    <script src="sidepanel.js"></script>
+</body>
+</html>
