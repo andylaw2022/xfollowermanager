@@ -25,7 +25,10 @@ chrome.runtime.onInstalled.addListener(() => {
         .then(() => console.log('侧边栏已配置'))
         .catch(error => console.error('配置失败:', error));
 });
-
+// background.js 添加状态管理
+let batchQueue = [];
+let currentType = '';
+let isProcessing = false;
 // 处理来自侧边栏的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('收到消息:', message.action, '来自:', sender.tab?.id);
@@ -67,11 +70,54 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'ping': // 新增ping响应
             sendResponse({ status: 'ok', timestamp: Date.now() });
             return true;
+        case 'startNavigationBatch':
+            batchQueue = message.users;
+            currentType = message.type;
+            processNextInQueue(message.tabId);
         default:
             sendResponse({ received: true });
     }
 });
+async function processNextInQueue(tabId) {
+    if (batchQueue.length === 0) {
+        chrome.runtime.sendMessage({ action: 'batchFinished' });
+        return;
+    }
 
+    const user = batchQueue.shift();
+    
+    // 1. 跳转 URL
+    chrome.tabs.update(tabId, { url: `https://x.com/${user.handle}` });
+
+    // 2. 监听页面加载完成
+    const listener = async (updatedTabId, info) => {
+        if (updatedTabId === tabId && info.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(listener);
+            
+            // 给 Twitter 内部路由一点渲染时间
+            await new Promise(r => setTimeout(r, 3000));
+
+            // 3. 通知 content.js 执行点击
+            chrome.tabs.sendMessage(tabId, {
+                action: 'executeActionOnProfile',
+                type: currentType,
+                handle: user.handle
+            }, (response) => {
+                // 4. 反馈给 sidepanel 并继续下一个
+                chrome.runtime.sendMessage({
+                    action: 'batchProgress',
+                    handle: user.handle,
+                    success: response?.success,
+                    message: response?.message || '处理完成'
+                });
+                
+                // 随机延迟 2-4 秒防止风控，然后处理下一个
+                setTimeout(() => processNextInQueue(tabId), 2000 + Math.random() * 2000);
+            });
+        }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+}
 // 获取Twitter标签页
 async function getTwitterTab() {
     try {
@@ -218,3 +264,77 @@ async function injectContentScript(tabId) {
 //         throw error;
 //     }
 // }
+
+// background.js
+let taskQueue = [];
+let currentOpType = '';
+let activeTabId = null;
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'startNavigationBatch') {
+        taskQueue = message.users || [];
+        currentOpType = message.type;
+        activeTabId = message.tabId;
+        executeNextTask();
+    }
+});
+
+async function executeNextTask() {
+    if (taskQueue.length === 0) {
+        chrome.runtime.sendMessage({ action: 'batchFinished' });
+        return;
+    }
+
+    const user = taskQueue.shift();
+
+    try {
+        // 更新标签页 URL
+        await chrome.tabs.update(activeTabId, { url: 'https://x.com/' + user.handle });
+
+        // 监听加载完成
+        const listener = (tabId, info) => {
+            if (tabId === activeTabId && info.status === 'complete') {
+                chrome.tabs.onUpdated.removeListener(listener);
+
+                // 等待 3 秒确保页面组件渲染
+                setTimeout(() => {
+                    sendActionToContent(user.handle);
+                }, 3000);
+            }
+        };
+        chrome.tabs.onUpdated.addListener(listener);
+    } catch (err) {
+        console.warn("跳过无效任务:", err.message);
+        // 如果是因为 DevTools 报错，提示用户
+        if (err.message.includes('DevTools')) {
+            chrome.runtime.sendMessage({ 
+                action: 'batchProgress', 
+                handle: user.handle, 
+                success: false, 
+                message: "操作受限：请关闭 F12 开发者工具后再试" 
+            });
+        }
+        setTimeout(executeNextTask, 1000); // 1秒后处理下一个
+    }
+}
+
+function sendActionToContent(handle) {
+    chrome.tabs.sendMessage(activeTabId, {
+        action: 'executeActionOnProfile',
+        type: currentOpType
+    }, (response) => {
+        // 处理响应，不使用 ?. 语法
+        const success = (response && response.success) ? true : false;
+        const msg = (response && response.message) ? response.message : "响应超时";
+
+        chrome.runtime.sendMessage({
+            action: 'batchProgress',
+            handle: handle,
+            success: success,
+            message: msg
+        });
+
+        // 随机延迟 2-4 秒处理下一个
+        setTimeout(executeNextTask, 2000 + Math.random() * 2000);
+    });
+}

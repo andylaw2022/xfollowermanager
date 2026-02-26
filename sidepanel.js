@@ -143,11 +143,25 @@ setupEventListeners() {
     const batchFollowBtn = document.getElementById('batchFollowBtn');
     
     if (batchUnfollowBtn) {
-        batchUnfollowBtn.addEventListener('click', () => this.startBatchUnfollow());
+      //  batchUnfollowBtn.addEventListener('click', () => this.startBatchUnfollow());
+      batchUnfollowBtn.onclick = () => {
+        if (this.selectedUsers.size === 0) return alert("请先勾选用户");
+        if (!confirm(`确定要取关选中的 ${this.selectedUsers.size} 人吗？`)) return;
+
+        // 构造用户数据并调用
+        const usersToProcess = Array.from(this.selectedUsers).map(handle => ({ handle }));
+        this.startBatchAction(usersToProcess, 'unfollow');
+    };
     }
     
     if (batchFollowBtn) {
-        batchFollowBtn.addEventListener('click', () => this.startBatchFollow());
+      //  batchFollowBtn.addEventListener('click', () => this.startBatchFollow());
+        batchFollowBtn.onclick = () => {
+        if (this.selectedUsers.size === 0) return alert("请先勾选用户");
+        
+        const usersToProcess = Array.from(this.selectedUsers).map(handle => ({ handle }));
+        this.startBatchAction(usersToProcess, 'follow');
+    };
     }
     
     // 状态监控按钮
@@ -601,7 +615,6 @@ handleErrorAction(action) {
             break;
     }
 }
-
 
 // 添加重新加载Twitter页面的方法
 async reloadTwitterPage() {
@@ -1820,7 +1833,31 @@ clearAllData() {
         // 恢复批量操作按钮状态
      //   this.updateSelectionUI();
     }
+// 修改 TwitterManager 类中的发起方法
+// 确保这个方法被正确调用
+startBatchAction(users, type) {
+    this.isOperating = true;
+    
+    // 增加过滤条件：windowType: 'normal'
+    chrome.tabs.query({ active: true, currentWindow: true, windowType: 'normal' }, (tabs) => {
+        const activeTabId = tabs[0] && tabs[0].id;
+        
+        if (!activeTabId) {
+            this.addLog("错误：请确保你在 Twitter 网页窗口中操作，而不是 DevTools 窗口", "error");
+            this.isOperating = false;
+            return;
+        }
 
+        this.addLog("启动跳转模式，请勿操作浏览器...", "info");
+
+        chrome.runtime.sendMessage({
+            action: 'startNavigationBatch',
+            users: users,
+            type: type,
+            tabId: activeTabId
+        });
+    });
+}
 // 修改 processBatchOperation 方法中的实际调用
 async processBatchOperation() {
 if (!this.batchOperation || !this.batchOperation.isRunning) return;
@@ -2285,6 +2322,38 @@ async function ensureContentScript(tabId) {
         await new Promise(r => setTimeout(r, 500));
     }
 }
+
+
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+    // 检查 msg 是否存在且具有 action 属性
+    if (!msg || !msg.action) return;
+
+    if (msg.action === 'batchProgress') {
+        const handle = msg.handle;
+        const isSuccess = msg.success === true; // 显式判断
+        const statusMsg = msg.message || '';
+
+        const logType = isSuccess ? 'success' : 'warn';
+
+        // 确保实例存在再调用
+        if (window.twitterManager) {
+            window.twitterManager.addLog("[@" + handle + "] " + statusMsg, logType);
+            if (isSuccess) {
+                window.twitterManager.updateUserStatus(handle, 'done');
+            }
+        }
+    }
+
+    if (msg.action === 'batchFinished') {
+        if (window.twitterManager) {
+            window.twitterManager.isOperating = false;
+            window.twitterManager.addLog('批量任务已全部结束', 'info');
+            window.twitterManager.hideStatusMonitor(); // 任务结束隐藏监控
+        }
+    }
+});
+
+
 
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {

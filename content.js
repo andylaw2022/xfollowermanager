@@ -97,7 +97,18 @@ function handleMessage(request, sender, sendResponse) {
         respond({ received: true });
         return true;
     }
-    
+
+    if (request.action === 'executeActionOnProfile') {
+        (async () => {
+            try {
+                const result = await runActionOnUserPage(request.type);
+                sendResponse(result);
+            } catch (e) {
+                sendResponse({ success: false, message: e.message });
+            }
+        })();
+        return true;
+    }
     // 其他操作
     respond({ error: '未知操作' });
     return true;
@@ -431,7 +442,7 @@ function extractUserQuick(element, index) {
         if (!userData.handle) return null;
 
         return {
-            id: `twitter_${userData.handle}_${index}`,
+            id: userData.handle,
             name: userData.name,
             handle: userData.handle,
             verified: userData.verified,
@@ -811,7 +822,7 @@ function simpleExtractUsers() {
         for (let i = 0; i < limit; i++) {
             const handle = uniqueHandles[i];
             users.push({
-                id: `twitter_${handle}_${i}`,
+                id: handle,
                 name: handle,
                 handle: handle,
                 verified: Math.random() > 0.9,
@@ -841,5 +852,32 @@ setTimeout(() => {
         console.log('发送就绪信号异常');
     }
 }, 2000);
+
+// content.js
+
+
+async function runActionOnUserPage(type) {
+    // 查找关注或取关按钮
+    const btn = document.querySelector('[data-testid$="-unfollow"], [data-testid$="-follow"]');
+    if (!btn) return { success: false, message: '未找到操作按钮' };
+
+    const testId = btn.getAttribute('data-testid') || '';
+    const isFollowing = testId.indexOf('unfollow') !== -1;
+
+    if (type === 'unfollow' && isFollowing) {
+        btn.click();
+        await new Promise(r => setTimeout(r, 800));
+        const confirm = document.querySelector('[data-testid="confirmationSheetConfirm"]');
+        if (confirm) confirm.click();
+        return { success: true, message: '已成功取关' };
+    }
+
+    if (type === 'follow' && !isFollowing) {
+        btn.click();
+        return { success: true, message: '已成功关注' };
+    }
+
+    return { success: true, message: '状态无需改变' };
+}
 
 console.log('Twitter关注管理器 Content Script 已就绪');
