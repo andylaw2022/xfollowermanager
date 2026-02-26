@@ -806,7 +806,7 @@ function simpleExtractUsers() {
         const uniqueHandles = [...new Set(atMatches.map(m => m.replace('@', '')))];
         
         // 取前30个
-        const limit = Math.min(uniqueHandles.length, 30);
+        const limit = Math.min(uniqueHandles.length, 200);
         
         for (let i = 0; i < limit; i++) {
             const handle = uniqueHandles[i];

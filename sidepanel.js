@@ -446,8 +446,9 @@ const applyBtn = document.getElementById('applyFilterBtn');
 async fetchUsersWithScrolling(tabId, targetLimit) {
     let allUsers = [];
     let retryCount = 0;
-    const maxRetries = 10; // 减少重试次数，防止卡死
+    const maxRetries = 100; // 减少重试次数，防止卡死
     let lastUserCount = 0;
+    let consecutiveSameCount = 0;
 
     while (allUsers.length < targetLimit && retryCount < maxRetries) {
         this.addLog(`正在抓取数据 (当前: ${allUsers.length}/${targetLimit})...`, 'info');
@@ -472,9 +473,15 @@ async fetchUsersWithScrolling(tabId, targetLimit) {
         }
 
         // 如果滚动后没有新用户增加，说明到底了，直接退出
-        if (allUsers.length === lastUserCount && retryCount > 2) {
-            this.addLog(`页面已无更多数据`, 'info');
-            break;
+// 检查是否有新数据增加
+        if (allUsers.length === lastUserCount) {
+            consecutiveSameCount++;
+            if (consecutiveSameCount > 5) { // 连续5次没新数据才判定到底
+            //    this.addLog(`页面已无更多数据或加载过慢`, 'info');
+             //   break;
+            }
+        } else {
+            consecutiveSameCount = 0;
         }
         lastUserCount = allUsers.length;
 
